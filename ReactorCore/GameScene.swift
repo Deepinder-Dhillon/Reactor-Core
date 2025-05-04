@@ -22,17 +22,25 @@ class GameScene: SKScene {
     private var rod3: SKSpriteNode!
     private let rodMinY: CGFloat = -100
     private let rodMaxY: CGFloat = 150
-    private var rodPosition: CGFloat = 0.0
+    private var rod1Position: CGFloat = 0.0
+    private var rod2Position: CGFloat = 0.0
+    private var rod1Delay: CGFloat = 0.2
+    private var rod2Delay: CGFloat = 0.4
     
     private var needleNode: SKSpriteNode!
     private var reactorTemp: CGFloat = 0.5
     private var needleCurAngle: CGFloat = 0.0
     
-
-    private let heatGenRate: CGFloat = 0.01
-    private let coolingRate: CGFloat = 0.008
-    private let tempDriftRate: CGFloat = 0.0016
-    private let needleSmooth: CGFloat = 0.8    
+    private let heatGenRate: CGFloat = 0.005
+    private let coolingRate: CGFloat = 0.004
+    private let tempDriftRate: CGFloat = 0.0008
+    private let needleSmooth: CGFloat = 0.5
+    
+    private var previousKnobAngle: CGFloat = 0
+    
+    private var rod1Direction: CGFloat = 1.0
+    private var rod2Direction: CGFloat = -1.0
+    private let rodDriftSpeed: CGFloat = 0.005
     
     override func didMove(to view: SKView) {
         backgroundColor = .black
@@ -69,34 +77,63 @@ class GameScene: SKScene {
     }
     
     private func updateGameState() {
-   
-        let heatGen = rodPosition * heatGenRate
-        let cooling = (1.0 - rodPosition) * coolingRate
+        let avgRodPosition = (rod1Position + rod2Position) / 2
+        
+        let heatGen = avgRodPosition * heatGenRate
+        let cooling = (1.0 - avgRodPosition) * coolingRate
         
         let time = CGFloat(CACurrentMediaTime())
-        // Increased drift amplitude, decreased frequency for slower swings
-        let drift = sin(time * 0.2) * tempDriftRate + CGFloat.random(in: -0.002...0.002)
+        let drift = sin(time * 0.1) * tempDriftRate + CGFloat.random(in: -0.0005...0.0005)
         
-        // Update reactor temperature
         reactorTemp += heatGen - cooling + drift
         reactorTemp = max(0.0, min(1.0, reactorTemp))
         
-    
+        let stabilizationFactor: CGFloat = 0.0005
+        if reactorTemp > 0.5 {
+            reactorTemp -= stabilizationFactor
+        } else if reactorTemp < 0.5 {
+            reactorTemp += stabilizationFactor
+        }
+        
         let needleRange: CGFloat = 2.0 * .pi / 3.0
         let targetRotation = needleRange * (reactorTemp * 2 - 1)
-        let rotationDiff = targetRotation - needleCurAngle
         
+        let rotationDiff = targetRotation - needleCurAngle
         needleCurAngle += rotationDiff * needleSmooth
+        
         needleNode.zRotation = needleCurAngle
+        
+        updateRodDrift()
         
     }
     
-    private func updateRodPositions() {
-        let yPos = rodMinY + (rodMaxY - rodMinY) * rodPosition
+    private func updateRodDrift() {
+        let time = CGFloat(CACurrentMediaTime())
         
-        rod1?.position.y = yPos
-        rod2?.position.y = yPos
-        rod3?.position.y = yPos
+        rod1Position += rod1Direction * rodDriftSpeed * easeInOutSine(time)
+        rod2Position += rod2Direction * rodDriftSpeed * easeInOutSine(time + 1.0)
+        
+        if rod1Position <= 0 || rod1Position >= 1 {
+            rod1Direction *= -1
+        }
+        if rod2Position <= 0 || rod2Position >= 1 {
+            rod2Direction *= -1
+        }
+        
+        updateRodPositions()
+    }
+    
+    private func easeInOutSine(_ t: CGFloat) -> CGFloat {
+        return -(cos(CGFloat.pi * t) - 1) / 2
+    }
+    
+    private func updateRodPositions() {
+        let rod1Y = rodMinY + (rodMaxY - rodMinY) * rod1Position
+        let rod2Y = rodMinY + (rodMaxY - rodMinY) * rod2Position
+        
+        rod1?.position.y = rod1Y * -1
+        rod2?.position.y = rod2Y * -1
+        rod3?.position.y = (rod1Y + rod2Y) / 2 * -1
     }
     
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -126,7 +163,7 @@ class GameScene: SKScene {
         
         let angleDiff = calculateAngleDiff(from: lastTickAngle, to: angle)
         
-        updateRod(angleDiff: angleDiff)
+        applyRodDelays(angleDiff: angleDiff)
         updateRodPositions()
     }
     
@@ -167,13 +204,38 @@ class GameScene: SKScene {
         return diff
     }
     
-    private func updateRod(angleDiff: CGFloat) {
-        let scaleFactor: CGFloat = 0.1
+    private func applyRodDelays(angleDiff: CGFloat) {
+        rod1Position = moveRodWithDelay(currentPosition: rod1Position,
+                                        angleDiff: angleDiff,
+                                        delay: rod1Delay)
+        rod2Position = moveRodWithDelay(currentPosition: rod2Position,
+                                        angleDiff: angleDiff,
+                                        delay: rod2Delay)
+    }
+    
+    private func moveRodWithDelay(currentPosition: CGFloat, angleDiff: CGFloat, delay: CGFloat) -> CGFloat {
+        let targetPosition: CGFloat
+        let scaleFactor: CGFloat = 0.15
         
         if angleDiff > 0 {
-            rodPosition = max(0.0, rodPosition - abs(angleDiff) * scaleFactor)
-        } else if angleDiff < 0 {
-            rodPosition = min(1.0, rodPosition + abs(angleDiff) * scaleFactor)
+            targetPosition = max(0.0, currentPosition - abs(angleDiff) * scaleFactor)
+        } else {
+            targetPosition = min(1.0, currentPosition + abs(angleDiff) * scaleFactor)
+        }
+        
+        return currentPosition + (targetPosition - currentPosition) * delay
+    }
+    
+    override func update(_ currentTime: TimeInterval) {
+        let angleDiff = calculateAngleDiff(from: previousKnobAngle, to: knobNode.zRotation)
+        if isKnobTouched {
+            previousKnobAngle = knobNode.zRotation
+        } else {
+            applyRodDelays(angleDiff: angleDiff)
+
+            if abs(angleDiff) < 0.01 {
+                updateRodDrift()
+            }
         }
     }
 }
