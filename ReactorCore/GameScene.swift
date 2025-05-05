@@ -39,6 +39,10 @@ class GameScene: SKScene {
     private var rod2TargetPosition: CGFloat = 0.0
     private var rod3TargetPosition: CGFloat = 0.0
     private let rodMoveSpeed: CGFloat = 0.05
+    private var rod1Speed: CGFloat = 0.8
+    private var rod2Speed: CGFloat = 1
+    private var rod3Speed: CGFloat = 1.2
+
 
     
     // pressure needle
@@ -48,6 +52,9 @@ class GameScene: SKScene {
     private let coolingRate: CGFloat = 0.004
     private let tempDriftRate: CGFloat = 0.0008
     private let needleSmooth: CGFloat = 0.5
+    
+    private var lastMovementTime: TimeInterval = 0
+    private let driftDelay: TimeInterval = 0.3
     
     
     private var previousKnobAngle: CGFloat = 0
@@ -106,18 +113,21 @@ class GameScene: SKScene {
         let touchLocation = touch.location(in: self)
         let angle = angleBetween(knobCenter: knobNode.position, to: touchLocation)
         let angleDiff = calculateAngleDiff(from: lastKnobAngle, to: angle)
+        
 
         rotation += angleDiff * rotationSpeed
         knobNode.zRotation = rotation
-
         checkForHaptic(newAngle: rotation)
         updateRodTargetPositions(angleDiff: angleDiff)
+        
+        
 
         lastKnobAngle = angle
     }
     
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         isKnobTouched = false
+        updateRodSpeed()
     }
     
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -143,13 +153,20 @@ class GameScene: SKScene {
         
         // move rods
         updateRodPositions()
+        let curTime = CACurrentMediaTime()
+        
+        
+        if  (curTime - lastMovementTime) > driftDelay{
+            rodDrift()
+        }
+    
     }
     
     // rod movement animation
     private func updateRodPositions() {
-        rod1Position += (rod1TargetPosition - rod1Position) * rodMoveSpeed
-        rod2Position += (rod2TargetPosition - rod2Position) * rodMoveSpeed * 0.8
-        rod3Position += (rod3TargetPosition - rod3Position) * rodMoveSpeed * 1.2
+        rod1Position += (rod1TargetPosition - rod1Position) * rodMoveSpeed * rod1Speed
+        rod2Position += (rod2TargetPosition - rod2Position) * rodMoveSpeed * rod2Speed
+        rod3Position += (rod3TargetPosition - rod3Position) * rodMoveSpeed * rod3Speed
         
         rod1?.position.y = rodMinY + (rodMaxY - rodMinY) * rod1Position
         rod2?.position.y = rodMinY + (rodMaxY - rodMinY) * rod2Position
@@ -161,13 +178,27 @@ class GameScene: SKScene {
         let scaleFactor: CGFloat = 0.08
         
         if angleDiff > 0 {
-            rod1TargetPosition = max(0.0, rod1TargetPosition - abs(angleDiff) * scaleFactor)
-            rod2TargetPosition = max(0.0, rod2TargetPosition - abs(angleDiff) * scaleFactor * 0.8)
-            rod3TargetPosition = max(0.0, rod3TargetPosition - abs(angleDiff) * scaleFactor * 1.2)
+            rod1TargetPosition = max(0.0, rod1TargetPosition - abs(angleDiff) * scaleFactor * rod1Speed)
+            rod2TargetPosition = max(0.0, rod2TargetPosition - abs(angleDiff) * scaleFactor * rod2Speed)
+            rod3TargetPosition = max(0.0, rod3TargetPosition - abs(angleDiff) * scaleFactor * rod3Speed)
         } else {
-            rod1TargetPosition = min(1.0, rod1TargetPosition + abs(angleDiff) * scaleFactor)
-            rod2TargetPosition = min(1.0, rod2TargetPosition + abs(angleDiff) * scaleFactor * 0.8)
-            rod3TargetPosition = min(1.0, rod3TargetPosition + abs(angleDiff) * scaleFactor * 1.2)
+            rod1TargetPosition = min(1.0, rod1TargetPosition + abs(angleDiff) * scaleFactor * rod1Speed)
+            rod2TargetPosition = min(1.0, rod2TargetPosition + abs(angleDiff) * scaleFactor * rod2Speed)
+            rod3TargetPosition = min(1.0, rod3TargetPosition + abs(angleDiff) * scaleFactor * rod3Speed)
+        }
+    }
+
+    private func updateRodSpeed() {
+        let values: [CGFloat] = [-1,0,1]
+        rod1Speed = CGFloat.random(in: 0.7...1.4)
+        rod2Speed = CGFloat.random(in: 0.7...1.4)
+        rod3Speed = CGFloat.random(in: 0.7...1.4)
+
+        if abs(rod1Speed - rod2Speed) < 0.2 {
+            rod2Speed = rod1Speed + 0.2 * values.randomElement()!
+        }
+        if abs(rod1Speed - rod3Speed) < 0.2 {
+            rod3Speed = rod1Speed + 0.2 * values.randomElement()!
         }
     }
     
@@ -176,6 +207,7 @@ class GameScene: SKScene {
         let delta = calculateAngleDiff(from: lastTickAngle, to: newAngle)
 
         if abs(delta) >= tickStep {
+            lastMovementTime = CACurrentMediaTime()
             haptic.impactOccurred()
             haptic.prepare()
             lastTickAngle = newAngle
