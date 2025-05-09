@@ -40,4 +40,3 @@ struct GameView_Previews: PreviewProvider {
                         
     }
 }
-

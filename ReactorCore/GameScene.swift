@@ -48,24 +48,26 @@ class GameScene: SKScene {
     // pressure needle
     private var reactorTemp: CGFloat = 0.5
     private var needleCurAngle: CGFloat = 0.0
-    private let heatGenRate: CGFloat = 0.005
-    private let coolingRate: CGFloat = 0.004
+    private let heatGenRate: CGFloat = 0.006
+    private let coolingRate: CGFloat = 0.005
     private let tempDriftRate: CGFloat = 0.0008
     private let needleSmooth: CGFloat = 0.5
     
+    // rod drift
     private var lastMovementTime: TimeInterval = 0
     private let driftDelay: TimeInterval = 0.3
-    
-    
-    private var previousKnobAngle: CGFloat = 0
-    
     private var rod1Direction: CGFloat = 1.0
     private var rod2Direction: CGFloat = -1.0
-    private let rodDriftSpeed: CGFloat = 0.005
+    private let rodDriftSpeed: CGFloat = 0.007
+    
+    // score
+    private var score: CGFloat = 0
+    private var scoreLabel: SKLabelNode!
+    private var lastScoreTime: TimeInterval = 0
     
     // main scene
     override func didMove(to view: SKView) {
-        backgroundColor = .black
+
         guard
             let knob = childNode(withName: "knobNode") as? SKSpriteNode,
             let r1 = childNode(withName: "rod1") as? SKSpriteNode,
@@ -81,6 +83,21 @@ class GameScene: SKScene {
         rod2 = r2
         rod3 = r3
         needleNode = needle
+        
+
+        lastScoreTime = CACurrentMediaTime()
+        scoreLabel = SKLabelNode(fontNamed: "Arial")
+        scoreLabel.fontSize = 40
+        scoreLabel.fontColor = .white
+        scoreLabel.horizontalAlignmentMode = .right
+        scoreLabel.verticalAlignmentMode = .top
+        scoreLabel.text = "Score: 0"
+        addChild(scoreLabel)
+        scoreLabel.position = CGPoint(
+            x: size.width - 20,
+            y: size.height - 20
+        )
+        scoreLabel.zPosition = 100
         
         haptic.prepare()
         lastTickAngle = knobNode.zRotation
@@ -118,7 +135,7 @@ class GameScene: SKScene {
         rotation += angleDiff * rotationSpeed
         knobNode.zRotation = rotation
         checkForHaptic(newAngle: rotation)
-        updateRodTargetPositions(angleDiff: angleDiff)
+        updateRodTargetPositions(angleDiff: -angleDiff)
         
         
 
@@ -155,11 +172,21 @@ class GameScene: SKScene {
         updateRodPositions()
         let curTime = CACurrentMediaTime()
         
-        
+        // add drift if knob not moved
         if  (curTime - lastMovementTime) > driftDelay{
             rodDrift()
+            updateRodSpeed()
         }
-    
+
+        // update score
+        
+        let dt = curTime - lastScoreTime
+        
+        if dt >= 1.0{
+            updateScore()
+        }
+
+
     }
     
     // rod movement animation
@@ -258,5 +285,13 @@ class GameScene: SKScene {
         if rod2TargetPosition <= 0 || rod2TargetPosition >= 1 {
             rod2Direction *= -1
         }
+    }
+
+    private func updateScore() {
+        score += 1
+        scoreLabel.text = "Score: \(score)"
+        lastScoreTime = CACurrentMediaTime()
+        
+        
     }
 }
