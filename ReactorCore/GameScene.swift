@@ -86,23 +86,11 @@ class GameScene: SKScene {
         
 
         lastScoreTime = CACurrentMediaTime()
-        scoreLabel = SKLabelNode(fontNamed: "Arial")
-        scoreLabel.fontSize = 40
-        scoreLabel.fontColor = .white
-        scoreLabel.horizontalAlignmentMode = .right
-        scoreLabel.verticalAlignmentMode = .top
-        scoreLabel.text = "Score: 0"
-        addChild(scoreLabel)
-        scoreLabel.position = CGPoint(
-            x: size.width - 20,
-            y: size.height - 20
-        )
-        scoreLabel.zPosition = 100
+       
         
         haptic.prepare()
         lastTickAngle = knobNode.zRotation
         updateRodPositions()
-        
         let updateAction = SKAction.customAction(withDuration: 1.0/60.0) { [weak self] _, _ in
             self?.updateGameState()
         }
