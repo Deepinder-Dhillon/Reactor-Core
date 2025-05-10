@@ -16,6 +16,7 @@ class GameScene: SKScene {
     private var rod2: SKSpriteNode!
     private var rod3: SKSpriteNode!
     private var needleNode: SKSpriteNode!
+    private var scoreLabel: SKLabelNode!
     
     // knob and haptic
     private let haptic = UIImpactFeedbackGenerator(style: .light)
@@ -42,8 +43,8 @@ class GameScene: SKScene {
     private var rod1Speed: CGFloat = 0.8
     private var rod2Speed: CGFloat = 1
     private var rod3Speed: CGFloat = 1.2
-
-
+    
+    
     
     // pressure needle
     private var reactorTemp: CGFloat = 0.5
@@ -62,18 +63,18 @@ class GameScene: SKScene {
     
     // score
     private var score: CGFloat = 0
-    private var scoreLabel: SKLabelNode!
     private var lastScoreTime: TimeInterval = 0
     
     // main scene
     override func didMove(to view: SKView) {
-
+        
         guard
             let knob = childNode(withName: "knobNode") as? SKSpriteNode,
             let r1 = childNode(withName: "rod1") as? SKSpriteNode,
             let r2 = childNode(withName: "rod2") as? SKSpriteNode,
             let r3 = childNode(withName: "rod3") as? SKSpriteNode,
-            let needle = childNode(withName: "needle") as? SKSpriteNode
+            let needle = childNode(withName: "needle") as? SKSpriteNode,
+            let lbl = childNode(withName: "ScoreLB") as? SKLabelNode
         else {
             print("Error: missing nodes")
             return
@@ -83,10 +84,9 @@ class GameScene: SKScene {
         rod2 = r2
         rod3 = r3
         needleNode = needle
-        
-
+        scoreLabel = lbl
         lastScoreTime = CACurrentMediaTime()
-       
+        
         
         haptic.prepare()
         lastTickAngle = knobNode.zRotation
@@ -102,7 +102,7 @@ class GameScene: SKScene {
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let touch = touches.first else { return }
         let location = touch.location(in: self)
-
+        
         let angle = angleBetween(knobCenter: knobNode.position, to: location)
         lastKnobAngle = angle
         
@@ -119,14 +119,14 @@ class GameScene: SKScene {
         let angle = angleBetween(knobCenter: knobNode.position, to: touchLocation)
         let angleDiff = calculateAngleDiff(from: lastKnobAngle, to: angle)
         
-
+        
         rotation += angleDiff * rotationSpeed
         knobNode.zRotation = rotation
         checkForHaptic(newAngle: rotation)
         updateRodTargetPositions(angleDiff: -angleDiff)
         
         
-
+        
         lastKnobAngle = angle
     }
     
@@ -144,7 +144,7 @@ class GameScene: SKScene {
         let avgRodPosition = (rod1Position + rod2Position + rod3Position) / 3
         reactorTemp += avgRodPosition * heatGenRate
         reactorTemp -= (1 - avgRodPosition) * coolingRate
-     
+        
         let time = CGFloat(CACurrentMediaTime())
         let drift = sin(time * 0.1) * tempDriftRate + CGFloat.random(in: -0.0005...0.0005)
         reactorTemp =  max(0.0, min(1.0, reactorTemp + drift))
@@ -160,21 +160,15 @@ class GameScene: SKScene {
         updateRodPositions()
         let curTime = CACurrentMediaTime()
         
+        updateScore()
+        
         // add drift if knob not moved
         if  (curTime - lastMovementTime) > driftDelay{
             rodDrift()
             updateRodSpeed()
         }
-
-        // update score
         
-        let dt = curTime - lastScoreTime
         
-        if dt >= 1.0{
-            updateScore()
-        }
-
-
     }
     
     // rod movement animation
@@ -202,13 +196,13 @@ class GameScene: SKScene {
             rod3TargetPosition = min(1.0, rod3TargetPosition + abs(angleDiff) * scaleFactor * rod3Speed)
         }
     }
-
+    
     private func updateRodSpeed() {
         let values: [CGFloat] = [-1,0,1]
         rod1Speed = CGFloat.random(in: 0.7...1.4)
         rod2Speed = CGFloat.random(in: 0.7...1.4)
         rod3Speed = CGFloat.random(in: 0.7...1.4)
-
+        
         if abs(rod1Speed - rod2Speed) < 0.2 {
             rod2Speed = rod1Speed + 0.2 * values.randomElement()!
         }
@@ -220,7 +214,7 @@ class GameScene: SKScene {
     // triggers haptic
     private func checkForHaptic(newAngle: CGFloat) {
         let delta = calculateAngleDiff(from: lastTickAngle, to: newAngle)
-
+        
         if abs(delta) >= tickStep {
             lastMovementTime = CACurrentMediaTime()
             haptic.impactOccurred()
@@ -274,12 +268,27 @@ class GameScene: SKScene {
             rod2Direction *= -1
         }
     }
-
+    
     private func updateScore() {
-        score += 1
-        scoreLabel.text = "Score: \(score)"
-        lastScoreTime = CACurrentMediaTime()
-        
-        
+        let curTime = CACurrentMediaTime()
+       
+        guard curTime - lastScoreTime >= 1.5 else { return }
+
+        let needleAngle = needleNode.zRotation
+        let maxDeflection = (2.0 * .pi / 3)
+        let bonusRange    = 1.0 * .pi / 12
+
+        guard abs(needleAngle) < maxDeflection else {
+            lastScoreTime = curTime
+            return
+        }
+        let points = abs(needleAngle) <= bonusRange ? 5 : 1
+
+        score += CGFloat(points)
+        scoreLabel.text = "Score: \(Int(score))"
+        lastScoreTime = curTime
     }
+    
+
+
 }
